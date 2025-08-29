@@ -1,24 +1,40 @@
 from studybuddy.application.services import StudyBuddyService
 from studybuddy.domain.time_parsers import parse_range
-from .formatting_command_line import (
-    print_users, print_match_suggestions, print_sessions,
-    print_courses, pick_course_from_rows
-)
+from .formatting_command_line import print_users, print_match_suggestions, print_sessions
 
-# ---------- input helpers (no crashes on bad input) ----------
+import re
+
+# ---------------------------------------
+# Robust input helpers & validators
+# ---------------------------------------
+
+COURSE_CODE_PATTERN = re.compile(r"^[A-Z]{4}-\d{4}$")
 
 def prompt_int(label: str):
+    """Prompt until a numeric integer is entered, or 'q' to cancel (returns None)."""
     while True:
-        raw = input(f"{label}").strip()
+        raw = input(label).strip()
         if raw.lower() in {"q", "quit", "exit"}:
             print("canceled.")
             return None
         try:
             return int(raw)
         except ValueError:
-            print("please enter a numeric id (or 'q' to cancel).")
+            print("Please enter a numeric id (or 'q' to cancel).")
+
+def prompt_course_code(label: str):
+    """Enforce codes like 'CPSC-3720' (4 letters, hyphen, 4 digits)."""
+    while True:
+        raw = input(label).strip()
+        if raw.lower() in {"q", "quit", "exit"}:
+            print("canceled.")
+            return None
+        if COURSE_CODE_PATTERN.match(raw):
+            return raw
+        print("Invalid code. Use format like 'CPSC-3720'. Or 'q' to cancel.")
 
 def prompt_range(label: str):
+    """Prompt for 'Mon 13:00-15:00' with retries or cancel."""
     while True:
         raw = input(label).strip()
         if raw.lower() in {"q", "quit", "exit"}:
@@ -27,22 +43,33 @@ def prompt_range(label: str):
         try:
             return parse_range(raw)
         except Exception:
-            print('invalid format. example: Mon 13:00-15:00. try again or "q" to cancel.')
+            print('Invalid format. Example: Mon 13:00-15:30. Try again or "q" to cancel.')
+
+def confirm(label: str) -> bool:
+    """Ask for y/n confirmation. Default is No."""
+    ans = input(f"{label} (y/N): ").strip().lower()
+    return ans in {"y", "yes"}
 
 def ensure_user_exists(svc: StudyBuddyService, user_id: int) -> bool:
+    """
+    Ensure a user id is real; print a hint if not.
+    Requires: StudyBuddyService.user_exists(user_id) -> bool
+    """
     if user_id is None:
         return False
     if not svc.user_exists(user_id):
-        print(f"user id {user_id} not found. create a user first (option 1).")
+        print(f"User id {user_id} not found. Create a user first (option 1).")
         return False
     return True
 
-# ---------- menu ----------
+# ---------------------------------------
+# Menu
+# ---------------------------------------
 
 def display_menu():
     print("""
 studybuddy
-1) create user
+1) create user (guided)
 2) update user name
 3) enroll course
 4) drop course
@@ -53,8 +80,6 @@ studybuddy
 9) request session
 10) respond to request
 11) my confirmed sessions
-12) list all courses
-13) list my courses
 0) exit
 """)
 
@@ -63,138 +88,161 @@ def handle_choice(svc: StudyBuddyService):
         display_menu()
         choice = input("choice: ").strip()
 
+        # ---------------------------
+        # 1) CREATE USER (GUIDED)
+        # ---------------------------
         if choice == "1":
-            name = input("name: ").strip()
+            name = ""
+            while not name:
+                name = input("Your name: ").strip()
+                if not name:
+                    print("Name cannot be empty.")
             uid = svc.create_user(name)
-            print(f"created user id {uid}")
+            print(f"✅ Created user id {uid} for '{name}'")
 
+            # Guided: immediately offer to enroll courses
+            if confirm("Would you like to add your courses now?"):
+                print("Enter each course code like 'CPSC-3720'. Type 'q' to stop.")
+                while True:
+                    course = prompt_course_code("Course code (or 'q' to finish): ")
+                    if course is None:
+                        break
+                    title = input("Course title (optional): ").strip() or None
+                    svc.enroll_course(uid, course, title)
+                    print(f"Added {course} to your profile.")
+                print("Done adding courses.")
+            continue
+
+        # ---------------------------
+        # 2) UPDATE USER NAME
+        # ---------------------------
         elif choice == "2":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            new = input("new name: ").strip()
+            new = input("New name: ").strip()
+            if not new:
+                print("Name cannot be empty.")
+                continue
             svc.update_user_name(uid, new)
-            print("updated.")
+            print("Updated.")
 
+        # ---------------------------
+        # 3) ENROLL COURSE
+        # ---------------------------
         elif choice == "3":
-            # Enroll: allow user to A) pick existing course from a numbered list OR B) type a new code
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            print("choose an existing course or press Enter to type a new code.")
-            existing = svc.list_all_courses()
-            if existing:
-                selected = pick_course_from_rows(existing, "select number (or Enter to type new, q to cancel): ")
-            else:
-                selected = None
-
-            if selected is None:
-                # either canceled or user wants to type a new code
-                raw = input("course code (e.g., CPSC-3600) or 'q' to cancel: ").strip()
-                if raw.lower() in {"q", "quit", "exit"}:
-                    print("canceled.")
-                    continue
-                course = raw
-                title = input("course title (optional): ").strip() or None
-            else:
-                course = selected
-                title = None  # already exists
+            course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
+            if course is None:
+                continue
+            title = input("Course title (optional): ").strip() or None
             svc.enroll_course(uid, course, title)
-            print(f"enrolled in {course}.")
+            print(f"Enrolled in {course}.")
 
+        # ---------------------------
+        # 4) DROP COURSE  (confirm)
+        # ---------------------------
         elif choice == "4":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            # drop: pick from *my* courses (numbered), avoids typos
-            my = svc.list_courses_for_user(uid)
-            if not my:
-                print("you have no enrolled courses to drop.")
-                continue
-            course = pick_course_from_rows(my, "select course to drop (or q to cancel): ")
+            course = prompt_course_code("Course code to drop (e.g., CPSC-3720) or 'q' to cancel: ")
             if course is None:
                 continue
+            if not confirm(f"Drop {course} for user {uid}?"):
+                print("Canceled.")
+                continue
+            # If user wasn't enrolled, this is a no-op (insert-or-ignore pattern elsewhere)
             svc.drop_course(uid, course)
-            print(f"dropped {course}.")
+            print("Dropped.")
 
+        # ---------------------------
+        # 5) ADD AVAILABILITY
+        # ---------------------------
         elif choice == "5":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            rng = prompt_range('range like "Mon 13:00-15:00" (or q to cancel): ')
+            rng = prompt_range('Range like "Mon 13:00-15:00" (or q to cancel): ')
             if rng is None:
                 continue
             dow, s, e = rng
-            aid = svc.add_availability(uid, dow, s, e)
-            print(f"availability id {aid} added.")
+            try:
+                aid = svc.add_availability(uid, dow, s, e)
+                print(f"Availability id {aid} added.")
+            except ValueError as ex:
+                print(f"Invalid range: {ex}")
 
+        # ---------------------------
+        # 6) REMOVE AVAILABILITY  (confirm)
+        # ---------------------------
         elif choice == "6":
             aid = prompt_int("availability id (or 'q' to cancel): ")
             if aid is None:
                 continue
+            if not confirm(f"Remove availability id {aid}?"):
+                print("Canceled.")
+                continue
             svc.remove_availability(aid)
-            print("removed.")
+            print("Removed.")
 
+        # ---------------------------
+        # 7) FIND CLASSMATES
+        # ---------------------------
         elif choice == "7":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            # ask which course to search within (from user’s courses)
-            my = svc.list_courses_for_user(uid)
-            if not my:
-                print("you have no enrolled courses. enroll first (option 3).")
-                continue
-            course = pick_course_from_rows(my, "find classmates in which course? (or q to cancel): ")
+            course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
             if course is None:
                 continue
             users = svc.find_classmates(uid, course)
             print_users(users)
 
+        # ---------------------------
+        # 8) SUGGEST MATCHES
+        # ---------------------------
         elif choice == "8":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            my = svc.list_courses_for_user(uid)
-            if not my:
-                print("you have no enrolled courses. enroll first (option 3).")
-                continue
-            course = pick_course_from_rows(my, "suggest matches for which course? (or q to cancel): ")
+            course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
             if course is None:
                 continue
-            mins_raw = input("min minutes overlap (default 30): ").strip()
+            mins_raw = input("Min minutes overlap (default 30): ").strip()
             try:
                 mins = int(mins_raw) if mins_raw else 30
             except ValueError:
-                print("invalid number. using default 30.")
+                print("Invalid number. Using default 30.")
                 mins = 30
             suggestions = svc.suggest_matches(uid, course, mins)
             print_match_suggestions(suggestions)
 
+        # ---------------------------
+        # 9) REQUEST SESSION
+        # ---------------------------
         elif choice == "9":
             requester = prompt_int("requester id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, requester):
                 continue
-            # pick course from requester’s courses
-            my = svc.list_courses_for_user(requester)
-            if not my:
-                print("you have no enrolled courses. enroll first (option 3).")
-                continue
-            course = pick_course_from_rows(my, "course for the session (or q to cancel): ")
-            if course is None:
-                continue
-
             invitee = prompt_int("invitee id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, invitee):
                 continue
-
-            rng = prompt_range('time window like "Mon 13:00-15:00" (or q to cancel): ')
+            course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
+            if course is None:
+                continue
+            rng = prompt_range('Time window like "Mon 13:00-15:00" (or q to cancel): ')
             if rng is None:
                 continue
             dow, s, e = rng
-
             sid = svc.request_session(requester, invitee, course, dow, s, e)
-            print(f"session id {sid} created (pending).")
+            print(f"Session id {sid} created (pending).")
 
+        # ---------------------------
+        # 10) RESPOND TO REQUEST
+        # ---------------------------
         elif choice == "10":
             sid = prompt_int("session id (or 'q' to cancel): ")
             if sid is None:
@@ -202,10 +250,13 @@ def handle_choice(svc: StudyBuddyService):
             uid = prompt_int("your user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            decision = input("accept? (y/n): ").strip().lower().startswith("y")
+            decision = input("Accept? (y/n): ").strip().lower().startswith("y")
             svc.respond_session(sid, uid, decision)
-            print("response recorded.")
+            print("Response recorded.")
 
+        # ---------------------------
+        # 11) MY CONFIRMED SESSIONS
+        # ---------------------------
         elif choice == "11":
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
@@ -213,19 +264,9 @@ def handle_choice(svc: StudyBuddyService):
             sessions = svc.list_confirmed_sessions_for_user(uid)
             print_sessions(sessions)
 
-        elif choice == "12":
-            # list all courses in the system
-            courses = svc.list_all_courses()
-            print_courses(courses)
-
-        elif choice == "13":
-            # list courses for a specific user (then optionally select one)
-            uid = prompt_int("user id (or 'q' to cancel): ")
-            if not ensure_user_exists(svc, uid):
-                continue
-            courses = svc.list_courses_for_user(uid)
-            print_courses(courses)
-
+        # ---------------------------
+        # EXIT
+        # ---------------------------
         elif choice == "0":
             print("bye!")
             break
