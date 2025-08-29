@@ -8,7 +8,7 @@ import re
 # Robust input helpers & validators
 # ---------------------------------------
 
-COURSE_CODE_PATTERN = re.compile(r"^[A-Z]{4}-\d{4}$")
+COURSE_CODE_PATTERN = re.compile(r"^[A-Z]{3,4}-\d{4}$")
 
 def prompt_int(label: str):
     """Prompt until a numeric integer is entered, or 'q' to cancel (returns None)."""
@@ -23,15 +23,16 @@ def prompt_int(label: str):
             print("Please enter a numeric id (or 'q' to cancel).")
 
 def prompt_course_code(label: str):
-    """Enforce codes like 'CPSC-3720' (4 letters, hyphen, 4 digits)."""
+    """Accept codes like 'CPSC-3720' or 'BIO-1220' (3–4 letters, hyphen, 4 digits)."""
     while True:
         raw = input(label).strip()
         if raw.lower() in {"q", "quit", "exit"}:
             print("canceled.")
             return None
-        if COURSE_CODE_PATTERN.match(raw):
-            return raw
-        print("Invalid code. Use format like 'CPSC-3720'. Or 'q' to cancel.")
+        candidate = raw.upper()              # normalize case
+        if COURSE_CODE_PATTERN.match(candidate):
+            return candidate
+        print("Invalid code. Use format like 'CPSC-3720' or 'BIO-1220' (3–4 letters, hyphen, 4 digits). Or 'q' to cancel.")
 
 def prompt_range(label: str):
     """Prompt for 'Mon 13:00-15:00' with retries or cancel."""
