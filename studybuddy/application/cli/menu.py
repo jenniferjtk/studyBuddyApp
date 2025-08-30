@@ -135,12 +135,13 @@ def handle_choice(svc: StudyBuddyService):
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
-            if course is None:
-                continue
-            title = input("Course title (optional): ").strip() or None
-            svc.enroll_course(uid, course, title)
-            print(f"Enrolled in {course}.")
+            while True:
+                course = prompt_course_code("Course code (e.g., CPSC-3720) or 'q' to cancel: ")
+                if course is None:
+                    break
+                title = input("Course title (optional): ").strip() or None
+                svc.enroll_course(uid, course, title)
+                print(f"Enrolled in {course}.")
 
         # ---------------------------
         # 4) DROP COURSE  (confirm)
@@ -149,15 +150,16 @@ def handle_choice(svc: StudyBuddyService):
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            course = prompt_course_code("Course code to drop (e.g., CPSC-3720) or 'q' to cancel: ")
-            if course is None:
-                continue
-            if not confirm(f"Drop {course} for user {uid}?"):
-                print("Canceled.")
-                continue
-            # If user wasn't enrolled, this is a no-op (insert-or-ignore pattern elsewhere)
-            svc.drop_course(uid, course)
-            print("Dropped.")
+            while True:
+                course = prompt_course_code("Course code to drop (e.g., CPSC-3720) or 'q' to cancel: ")
+                if course is None:
+                    break
+                if not confirm(f"Drop {course} for user {uid}?"):
+                    print("Canceled.")
+                    break
+                # If user wasn't enrolled, this is a no-op (insert-or-ignore pattern elsewhere)
+                svc.drop_course(uid, course)
+                print("Dropped.")
 
         # ---------------------------
         # 5) ADD AVAILABILITY
@@ -166,28 +168,30 @@ def handle_choice(svc: StudyBuddyService):
             uid = prompt_int("user id (or 'q' to cancel): ")
             if not ensure_user_exists(svc, uid):
                 continue
-            rng = prompt_range('Range like "Mon 13:00-15:00" (or q to cancel): ')
-            if rng is None:
-                continue
-            dow, s, e = rng
-            try:
-                aid = svc.add_availability(uid, dow, s, e)
-                print(f"Availability id {aid} added.")
-            except ValueError as ex:
-                print(f"Invalid range: {ex}")
+            while True:
+                rng = prompt_range('Range like "Mon 13:00-15:00" (or q to cancel): ')
+                if rng is None:
+                    break
+                dow, s, e = rng
+                try:
+                    aid = svc.add_availability(uid, dow, s, e)
+                    print(f"Availability id {aid} added.")
+                except ValueError as ex:
+                    print(f"Invalid range: {ex}")
 
         # ---------------------------
         # 6) REMOVE AVAILABILITY  (confirm)
         # ---------------------------
         elif choice == "6":
-            aid = prompt_int("availability id (or 'q' to cancel): ")
-            if aid is None:
-                continue
-            if not confirm(f"Remove availability id {aid}?"):
-                print("Canceled.")
-                continue
-            svc.remove_availability(aid)
-            print("Removed.")
+            while True:
+                aid = prompt_int("availability id (or 'q' to cancel): ")
+                if aid is None:
+                    break
+                if not confirm(f"Remove availability id {aid}?"):
+                    print("Canceled.")
+                    break
+                svc.remove_availability(aid)
+                print("Removed.")
 
         # ---------------------------
         # 7) FIND CLASSMATES
