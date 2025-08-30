@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import MagicMock
 from studybuddy.application.services import StudyBuddyService, MatchSuggestion
 
+# to run tests run python -m unittest tests/test_services.py in terminal
+
 class TestStudyBuddyService(unittest.TestCase):
     def setUp(self):
         # Mock the database
