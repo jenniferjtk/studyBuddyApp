@@ -69,8 +69,8 @@ class StudyBuddyService:
     def remove_availability(self, availability_id: int) -> None:
         self.db.execute("delete from availability where id = :id", {"id": availability_id})
 
-    # -------- Classmates (FR5) --------
-    def find_classmates(self, user_id: int, course_code: str) -> List[User]:
+    # -------- Classclass (FR5) --------
+    def find_classclass(self, user_id: int, course_code: str) -> List[User]:
         rows = self.db.query_all("""
             select users_classmate.id, users_classmate.name
             from enrollments as enrollments_for_me
@@ -85,14 +85,14 @@ class StudyBuddyService:
         """, {"u": user_id, "c": course_code})
         return [User(id=r["id"], name=r["name"]) for r in rows]
 
-    # -------- Suggest Matches (FR6) --------
+    # -------- Suggest Matches 
     def suggest_matches(self, user_id: int, course_code: str, min_minutes: int = MIN_MATCH_MINUTES) -> List[MatchSuggestion]:
         rows = self.db.query_all("""
             with my as (
               select day_of_week, start_min, end_min
               from availability where user_id = :me
             ),
-            mates as (
+            classmates as (
               select availability.user_id, availability.day_of_week, availability.start_min, availability.end_min
               from availability
               where availability.user_id in (
@@ -108,15 +108,15 @@ class StudyBuddyService:
               )
             )
             select
-              mates.user_id as partner_id,
-              mates.day_of_week as day_of_week,
-              max(my.start_min, mates.start_min) as overlap_start_min,
-              min(my.end_min, mates.end_min) as overlap_end_min,
-              (min(my.end_min, mates.end_min) - max(my.start_min, mates.start_min)) as minutes
+              class.user_id as partner_id,
+              class.day_of_week as day_of_week,
+              max(my.start_min, class.start_min) as overlap_start_min,
+              min(my.end_min, class.end_min) as overlap_end_min,
+              (min(my.end_min, class.end_min) - max(my.start_min, class.start_min)) as minutes
             from my
-            join mates on my.day_of_week = mates.day_of_week
-            where my.start_min < mates.end_min
-              and mates.start_min < my.end_min
+            join class on my.day_of_week = class.day_of_week
+            where my.start_min < class.end_min
+              and class.start_min < my.end_min
             group by partner_id, day_of_week, overlap_start_min, overlap_end_min
             having minutes >= :min
             order by minutes desc, day_of_week, overlap_start_min
