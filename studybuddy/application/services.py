@@ -5,7 +5,6 @@ from studybuddy.domain.domain_types import SessionStatus
 from studybuddy.app_configs import MIN_MATCH_MINUTES
 
 class StudyBuddyService:
-    """Facade that implements FR1–FR9."""
 
     def __init__(self, db: Storage):
         self.db = db
