@@ -69,8 +69,8 @@ class StudyBuddyService:
     def remove_availability(self, availability_id: int) -> None:
         self.db.execute("delete from availability where id = :id", {"id": availability_id})
 
-    # -------- Classclass (FR5) --------
-    def find_classclass(self, user_id: int, course_code: str) -> List[User]:
+    # -------- Classmates (FR5) --------
+    def find_classmates(self, user_id: int, course_code: str) -> List[User]:
         rows = self.db.query_all("""
             select users_classmate.id, users_classmate.name
             from enrollments as enrollments_for_me
@@ -89,45 +89,47 @@ class StudyBuddyService:
     def suggest_matches(self, user_id: int, course_code: str, min_minutes: int = MIN_MATCH_MINUTES) -> List[MatchSuggestion]:
         rows = self.db.query_all("""
             with my as (
-              select day_of_week, start_min, end_min
-              from availability where user_id = :me
+                select day_of_week, start_min, end_min
+                from availability where user_id = :me
             ),
             classmates as (
-              select availability.user_id, availability.day_of_week, availability.start_min, availability.end_min
-              from availability
-              where availability.user_id in (
-                select users_classmate.id
-                from enrollments as enrollments_for_me
-                join enrollments as enrollments_for_classmate
-                  on enrollments_for_classmate.course_code = enrollments_for_me.course_code
-                join users as users_classmate
-                  on users_classmate.id = enrollments_for_classmate.user_id
-                where enrollments_for_me.user_id = :me
-                  and enrollments_for_me.course_code = :course
-                  and enrollments_for_classmate.user_id <> :me
-              )
+                select availability.user_id, availability.day_of_week, availability.start_min, availability.end_min
+                from availability
+                where availability.user_id in (
+                    select users_classmate.id
+                    from enrollments as enrollments_for_me
+                    join enrollments as enrollments_for_classmate
+                        on enrollments_for_classmate.course_code = enrollments_for_me.course_code
+                    join users as users_classmate
+                        on users_classmate.id = enrollments_for_classmate.user_id
+                    where enrollments_for_me.user_id = :me
+                        and enrollments_for_me.course_code = :course
+                        and enrollments_for_classmate.user_id <> :me
+                )
             )
             select
-              class.user_id as partner_id,
-              class.day_of_week as day_of_week,
-              max(my.start_min, class.start_min) as overlap_start_min,
-              min(my.end_min, class.end_min) as overlap_end_min,
-              (min(my.end_min, class.end_min) - max(my.start_min, class.start_min)) as minutes
+                classmates.user_id as partner_id,
+                classmates.day_of_week as day_of_week,
+                max(my.start_min, classmates.start_min) as overlap_start_min,
+                min(my.end_min, classmates.end_min) as overlap_end_min,
+                (min(my.end_min, classmates.end_min) - max(my.start_min, classmates.start_min)) as minutes
             from my
-            join class on my.day_of_week = class.day_of_week
-            where my.start_min < class.end_min
-              and class.start_min < my.end_min
-            group by partner_id, day_of_week, overlap_start_min, overlap_end_min
+            join classmates on my.day_of_week = classmates.day_of_week
+            where my.start_min < classmates.end_min
+                and classmates.start_min < my.end_min
+            group by partner_id, classmates.day_of_week, overlap_start_min, overlap_end_min
             having minutes >= :min
-            order by minutes desc, day_of_week, overlap_start_min
+            order by minutes desc, classmates.day_of_week, overlap_start_min
         """, {"me": user_id, "course": course_code, "min": min_minutes})
-        return [MatchSuggestion(
-            partner_id=r["partner_id"],
-            day_of_week=r["day_of_week"],
-            overlap_start_min=r["overlap_start_min"],
-            overlap_end_min=r["overlap_end_min"],
-            minutes=r["minutes"],
-        ) for r in rows]
+        return [
+            MatchSuggestion(
+                partner_id=r["partner_id"],
+                day_of_week=r["day_of_week"],
+                overlap_start_min=r["overlap_start_min"],
+                overlap_end_min=r["overlap_end_min"],
+                minutes=r["minutes"],
+            ) for r in rows
+        ]
 
     # -------- Sessions (FR7, FR8, FR9) --------
     def request_session(self, requester_id: int, invitee_id: int, course_code: str,
