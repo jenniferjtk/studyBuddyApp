@@ -5,7 +5,6 @@ from studybuddy.domain.domain_types import SessionStatus
 from studybuddy.app_configs import MIN_MATCH_MINUTES
 
 class StudyBuddyService:
-    """Facade that implements FR1–FR9."""
 
     def __init__(self, db: Storage):
         self.db = db
@@ -69,8 +68,8 @@ class StudyBuddyService:
     def remove_availability(self, availability_id: int) -> None:
         self.db.execute("delete from availability where id = :id", {"id": availability_id})
 
-    # -------- Classclass (FR5) --------
-    def find_classclass(self, user_id: int, course_code: str) -> List[User]:
+    # -------- Classmates (FR5) --------
+    def find_classmates(self, user_id: int, course_code: str) -> List[User]:
         rows = self.db.query_all("""
             select users_classmate.id, users_classmate.name
             from enrollments as enrollments_for_me
