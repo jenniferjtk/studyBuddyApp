@@ -3,12 +3,14 @@ from studybuddy.domain.domain_types import SessionStatus, ParticipantRole, Parti
 
 # This file defines the data models used throughout the application using dataclasses
 # Each class represents one of the main functions ie User, Avail. Sesion, Session Particpant etc.
-# These are used to mirror the database schema and encorporate the enums defined earlier
-#
+# These are used to mirror the database schema (in schema.sql
+# encorporate the enums defined earlier 
+# 
 @dataclass
 class User:
     #Represents a student in the system (row in users table)
     # Comes directly from the users table in the database
+    #The service layer will create User objects after reading rows from the database.
     id: int
     name: str
 
@@ -25,6 +27,7 @@ class Availability:
 @dataclass
 class Session:
     #Represents a proposed or confirmed study session (row in sessions table)
+    # course_code links it to the relevant course, and status comes from the SessionStatus enum.
     id: int
     course_code: str
     day_of_week: int
