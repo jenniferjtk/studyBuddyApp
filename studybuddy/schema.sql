@@ -1,6 +1,6 @@
 -- enable foreign key enforcement in sqlite
 pragma foreign_keys = on;
-'''
+/*
 This schema defines the core data model for the StudyBuddy system
 Users are stored in the users table, each with a unique int id
 Availability also uses a unique int id to track each time slot
@@ -12,7 +12,7 @@ in the same course more than once. Study sessions are stored in the
 sessions table, each with a unique integer id, and participants are
 tracked in session_participants, where the combination of session_id
 + user_id ensures a user can only appear once per session
-'''
+*/
 --Cascade ensures that when a user or session is deleted, their related data is also removed
 -- Extra constraints ensure data is valid: days of the week must be
 -- between 0 and 6, time slots must be within a 24-hour range with start
