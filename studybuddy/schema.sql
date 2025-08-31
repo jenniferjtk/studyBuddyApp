@@ -1,7 +1,27 @@
 -- enable foreign key enforcement in sqlite
 pragma foreign_keys = on;
+'''
+This schema defines the core data model for the StudyBuddy system
+Users are stored in the users table, each with a unique int id
+Availability also uses a unique int id to track each time slot
+Courses are stored in the courses table identified by their course
+code string, which is the primary key (PK)
+ The enrollments table ties users -> courses, Primary key is the combination
+of user_id + course_code so that the same student cannot be enrolled
+in the same course more than once. Study sessions are stored in the
+sessions table, each with a unique integer id, and participants are
+tracked in session_participants, where the combination of session_id
++ user_id ensures a user can only appear once per session
+'''
+--Cascade ensures that when a user or session is deleted, their related data is also removed
+-- Extra constraints ensure data is valid: days of the week must be
+-- between 0 and 6, time slots must be within a 24-hour range with start
+-- earlier than end, session statuses can only be pending, confirmed,
+-- declined, or canceled, participant roles must be requester or invitee,
+-- and responses must be accepted, pending, or declined.
 
--- ========== core tables ==========
+
+-- MAIN TABLES:
 
 create table if not exists users (
   id integer primary key,
@@ -58,17 +78,3 @@ create table if not exists session_participants (
   foreign key (user_id) references users(id) on delete cascade
 );
 
--- ========== indexes for speed ==========
-
-create index if not exists idx_availability_user_day
-  on availability(user_id, day_of_week, start_min, end_min);
-
-create index if not exists idx_sessions_lookup
-  on sessions(status, course_code, day_of_week, start_min);
-
-create index if not exists idx_session_participants_user
-  on session_participants(user_id);
-
--- optional: quick lookup of classmates by course
-create index if not exists idx_enrollments_course_user
-  on enrollments(course_code, user_id);

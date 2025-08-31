@@ -256,6 +256,7 @@ def handle_choice(svc: StudyBuddyService):
             if not ensure_user_exists(svc, uid):
                 continue
             decision = input("Accept? (y/n): ").strip().lower().startswith("y")
+            # pass the decision into respond_session fxn 
             svc.respond_session(sid, uid, decision)
             print("Response recorded.")
 

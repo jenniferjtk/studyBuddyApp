@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# creates a quick reference to the database file
 DB_PATH = Path(__file__).resolve().parent / "studybuddy.db"
 
 WEEKDAY_TO_INT = {"mon":0,"tue":1,"wed":2,"thu":3,"fri":4,"sat":5,"sun":6}
